@@ -1,6 +1,6 @@
 displayName: Webfinger Plugin
 type: middleware
-iconPath: .assets/icon.svg
+iconPath: .assets/logo.svg
 
 import: github.com/nx211/traefik-webfinger
 

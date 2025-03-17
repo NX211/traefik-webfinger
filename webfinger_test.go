@@ -16,7 +16,7 @@ import (
 func TestWebFinger(t *testing.T) {
 	cfg := webfinger.CreateConfig()
 	cfg.Domain = "example.com"
-	
+
 	// Set up sample resources
 	cfg.Resources = map[string]webfinger.WebFingerResponse{
 		"acct:alice@example.com": {
@@ -54,14 +54,14 @@ func TestWebFinger(t *testing.T) {
 	require.NoError(t, err)
 
 	handler.ServeHTTP(recorder, req)
-	
+
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/jrd+json", recorder.Header().Get("Content-Type"))
-	
+
 	var response webfinger.WebFingerResponse
 	err = json.NewDecoder(recorder.Body).Decode(&response)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, "acct:alice@example.com", response.Subject)
 	assert.Len(t, response.Links, 2)
 	assert.Equal(t, "http://webfinger.net/rel/profile-page", response.Links[0].Rel)
@@ -112,7 +112,7 @@ func TestPassthrough(t *testing.T) {
 	cfg := webfinger.CreateConfig()
 	cfg.Domain = "example.com"
 	cfg.Passthrough = true // Enable passthrough for this test
-	
+
 	ctx := context.Background()
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusOK)
@@ -131,7 +131,7 @@ func TestPassthrough(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 	assert.Equal(t, http.StatusOK, recorder.Code)
-	
+
 	body, err := io.ReadAll(recorder.Body)
 	require.NoError(t, err)
 	assert.Equal(t, `{"message":"backend response"}`, string(body))

@@ -4,9 +4,18 @@ package webfinger
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+)
+
+// Define static errors.
+var (
+	ErrDomainRequired      = errors.New("domain must be specified")
+	ErrResourceDomainMatch = errors.New("resource does not match configured domain")
+	ErrSubjectRequired     = errors.New("subject is required for resource")
+	ErrRelRequired         = errors.New("rel is required for links in resource")
 )
 
 // WebFingerResponse represents the WebFinger JSON response according to RFC 7033.
@@ -56,24 +65,26 @@ type WebFinger struct {
 // New creates a new WebFinger middleware plugin.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	if config.Domain == "" {
-		return nil, fmt.Errorf("domain must be specified")
+		return nil, ErrDomainRequired
 	}
 
 	// Validate resources
 	for resource, response := range config.Resources {
 		if !isResourceForDomain(resource, config.Domain) {
-			return nil, fmt.Errorf("resource %s does not match configured domain %s", resource, config.Domain)
+			return nil, fmt.Errorf("%w: %s for domain %s", ErrResourceDomainMatch, resource, config.Domain)
 		}
+
 		if response.Subject == "" {
-			return nil, fmt.Errorf("subject is required for resource %s", resource)
+			return nil, fmt.Errorf("%w: %s", ErrSubjectRequired, resource)
 		}
+
 		for _, link := range response.Links {
 			if link.Rel == "" {
-				return nil, fmt.Errorf("rel is required for links in resource %s", resource)
+				return nil, fmt.Errorf("%w: %s", ErrRelRequired, resource)
 			}
 		}
 	}
-	
+
 	return &WebFinger{
 		next:        next,
 		name:        name,
@@ -84,85 +95,90 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 }
 
 // ServeHTTP implements the http.Handler interface.
-func (w *WebFinger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+func (w *WebFinger) ServeHTTP(responseWriter http.ResponseWriter, req *http.Request) {
 	// Only handle WebFinger requests to the well-known path
 	if !strings.HasPrefix(req.URL.Path, "/.well-known/webfinger") {
-		w.next.ServeHTTP(rw, req)
+		w.next.ServeHTTP(responseWriter, req)
 		return
 	}
 
 	// WebFinger only works with GET requests
 	if req.Method != http.MethodGet {
-		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(responseWriter, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Extract the resource parameter
 	resource := req.URL.Query().Get("resource")
 	if resource == "" {
-		http.Error(rw, "Resource parameter is required", http.StatusBadRequest)
+		http.Error(responseWriter, "Resource parameter is required", http.StatusBadRequest)
 		return
 	}
 
 	// Check if the resource belongs to the configured domain
 	if !isResourceForDomain(resource, w.domain) {
 		if w.passthrough {
-			w.next.ServeHTTP(rw, req)
+			w.next.ServeHTTP(responseWriter, req)
 			return
 		}
-		http.Error(rw, "Resource not found", http.StatusNotFound)
+
+		http.Error(responseWriter, "Resource not found", http.StatusNotFound)
+
 		return
 	}
 
 	// If the resource is specified in our configuration, return it
 	if response, exists := w.resources[resource]; exists {
-		rw.Header().Set("Content-Type", "application/jrd+json")
-		rw.WriteHeader(http.StatusOK)
-		
-		if err := json.NewEncoder(rw).Encode(response); err != nil {
-			http.Error(rw, "Error encoding response", http.StatusInternalServerError)
+		responseWriter.Header().Set("Content-Type", "application/jrd+json")
+		responseWriter.WriteHeader(http.StatusOK)
+
+		if err := json.NewEncoder(responseWriter).Encode(response); err != nil {
+			http.Error(responseWriter, "Error encoding response", http.StatusInternalServerError)
 			return
 		}
+
 		return
 	}
 
 	// If passthrough is enabled, forward the request to the backend
 	if w.passthrough {
-		w.next.ServeHTTP(rw, req)
+		w.next.ServeHTTP(responseWriter, req)
 		return
 	}
 
 	// Otherwise, return a 404
-	http.Error(rw, "Resource not found", http.StatusNotFound)
+	http.Error(responseWriter, "Resource not found", http.StatusNotFound)
 }
 
 // isResourceForDomain checks if the resource belongs to the configured domain.
 func isResourceForDomain(resource, domain string) bool {
 	// Resource can be in different formats, most commonly:
 	// acct:user@example.com, https://example.com/user, or mailto:user@example.com
-	
-	if strings.HasPrefix(resource, "acct:") {
-		parts := strings.SplitN(resource[5:], "@", 2)
-		return len(parts) == 2 && parts[1] == domain
+
+	const (
+		acctPrefix      = "acct:"
+		acctPrefixLen   = len(acctPrefix)
+		httpsPrefix     = "https://"
+		httpsPrefixLen  = len(httpsPrefix)
+		mailtoPrefix    = "mailto:"
+		mailtoPrefixLen = len(mailtoPrefix)
+		splitLimit      = 2
+	)
+
+	if strings.HasPrefix(resource, acctPrefix) {
+		parts := strings.SplitN(resource[acctPrefixLen:], "@", splitLimit)
+		return len(parts) == splitLimit && parts[1] == domain
 	}
-	
-	if strings.HasPrefix(resource, "https://") {
-		return strings.Contains(resource[8:], domain)
+
+	if strings.HasPrefix(resource, httpsPrefix) {
+		return strings.Contains(resource[httpsPrefixLen:], domain)
 	}
-	
-	if strings.HasPrefix(resource, "mailto:") {
-		parts := strings.SplitN(resource[7:], "@", 2)
-		return len(parts) == 2 && parts[1] == domain
+
+	if strings.HasPrefix(resource, mailtoPrefix) {
+		parts := strings.SplitN(resource[mailtoPrefixLen:], "@", splitLimit)
+		return len(parts) == splitLimit && parts[1] == domain
 	}
-	
+
 	// For other resource types, check if the domain is part of the resource
 	return strings.Contains(resource, domain)
-}
-
-// normalizeResource returns a normalized version of the resource identifier.
-func normalizeResource(resource string) string {
-	// This is a simplistic normalization that just returns the resource as-is.
-	// In a production environment, you might want to implement more sophisticated
-	// normalization, such as handling case insensitivity for email-like identifiers.
-	return resource
 }
