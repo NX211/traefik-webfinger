@@ -1,5 +1,5 @@
-// Package webfinger implements a Traefik middleware for handling WebFinger requests.
-package webfinger
+// Package traefik_webfinger implements a Traefik middleware for handling WebFinger requests.
+package traefik_webfinger
 
 import (
 	"context"

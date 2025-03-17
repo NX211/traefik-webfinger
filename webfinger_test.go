@@ -1,4 +1,4 @@
-package webfinger_test
+package traefik_webfinger_test
 
 import (
 	"context"
@@ -8,24 +8,24 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	webfinger "github.com/NX211/traefik-webfinger"
+	traefik_webfinger "github.com/NX211/traefik-webfinger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWebFinger(t *testing.T) {
-	cfg := webfinger.CreateConfig()
+	cfg := traefik_webfinger.CreateConfig()
 	cfg.Domain = "example.com"
 
 	// Set up sample resources
-	cfg.Resources = map[string]webfinger.WebFingerResponse{
+	cfg.Resources = map[string]traefik_webfinger.WebFingerResponse{
 		"acct:alice@example.com": {
 			Subject: "acct:alice@example.com",
 			Aliases: []string{
 				"https://example.com/alice",
 				"https://example.com/users/alice",
 			},
-			Links: []webfinger.WebFingerLink{
+			Links: []traefik_webfinger.WebFingerLink{
 				{
 					Rel:  "http://webfinger.net/rel/profile-page",
 					Type: "text/html",
@@ -45,7 +45,7 @@ func TestWebFinger(t *testing.T) {
 		rw.WriteHeader(http.StatusTeapot) // Should never reach here in our tests
 	})
 
-	handler, err := webfinger.New(ctx, next, cfg, "webfinger-test")
+	handler, err := traefik_webfinger.New(ctx, next, cfg, "webfinger-test")
 	require.NoError(t, err)
 
 	// Test 1: Valid WebFinger request
@@ -58,7 +58,7 @@ func TestWebFinger(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "application/jrd+json", recorder.Header().Get("Content-Type"))
 
-	var response webfinger.WebFingerResponse
+	var response traefik_webfinger.WebFingerResponse
 	err = json.NewDecoder(recorder.Body).Decode(&response)
 	require.NoError(t, err)
 
@@ -109,7 +109,7 @@ func TestWebFinger(t *testing.T) {
 }
 
 func TestPassthrough(t *testing.T) {
-	cfg := webfinger.CreateConfig()
+	cfg := traefik_webfinger.CreateConfig()
 	cfg.Domain = "example.com"
 	cfg.Passthrough = true // Enable passthrough for this test
 
@@ -121,7 +121,7 @@ func TestPassthrough(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	handler, err := webfinger.New(ctx, next, cfg, "webfinger-test")
+	handler, err := traefik_webfinger.New(ctx, next, cfg, "webfinger-test")
 	require.NoError(t, err)
 
 	// Test passthrough when resource not found
@@ -148,17 +148,17 @@ func TestPassthrough(t *testing.T) {
 func TestConfigValidation(t *testing.T) {
 	tests := []struct {
 		name        string
-		config      *webfinger.Config
+		config      *traefik_webfinger.Config
 		expectError bool
 	}{
 		{
 			name: "Valid config",
-			config: &webfinger.Config{
+			config: &traefik_webfinger.Config{
 				Domain: "example.com",
-				Resources: map[string]webfinger.WebFingerResponse{
+				Resources: map[string]traefik_webfinger.WebFingerResponse{
 					"acct:user@example.com": {
 						Subject: "acct:user@example.com",
-						Links: []webfinger.WebFingerLink{
+						Links: []traefik_webfinger.WebFingerLink{
 							{Rel: "self", Href: "https://example.com/user"},
 						},
 					},
@@ -168,8 +168,8 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "Missing domain",
-			config: &webfinger.Config{
-				Resources: map[string]webfinger.WebFingerResponse{
+			config: &traefik_webfinger.Config{
+				Resources: map[string]traefik_webfinger.WebFingerResponse{
 					"acct:user@example.com": {
 						Subject: "acct:user@example.com",
 					},
@@ -179,9 +179,9 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "Resource domain mismatch",
-			config: &webfinger.Config{
+			config: &traefik_webfinger.Config{
 				Domain: "example.com",
-				Resources: map[string]webfinger.WebFingerResponse{
+				Resources: map[string]traefik_webfinger.WebFingerResponse{
 					"acct:user@otherdomain.com": {
 						Subject: "acct:user@otherdomain.com",
 					},
@@ -191,11 +191,11 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "Missing subject",
-			config: &webfinger.Config{
+			config: &traefik_webfinger.Config{
 				Domain: "example.com",
-				Resources: map[string]webfinger.WebFingerResponse{
+				Resources: map[string]traefik_webfinger.WebFingerResponse{
 					"acct:user@example.com": {
-						Links: []webfinger.WebFingerLink{
+						Links: []traefik_webfinger.WebFingerLink{
 							{Rel: "self", Href: "https://example.com/user"},
 						},
 					},
@@ -205,12 +205,12 @@ func TestConfigValidation(t *testing.T) {
 		},
 		{
 			name: "Missing link rel",
-			config: &webfinger.Config{
+			config: &traefik_webfinger.Config{
 				Domain: "example.com",
-				Resources: map[string]webfinger.WebFingerResponse{
+				Resources: map[string]traefik_webfinger.WebFingerResponse{
 					"acct:user@example.com": {
 						Subject: "acct:user@example.com",
-						Links: []webfinger.WebFingerLink{
+						Links: []traefik_webfinger.WebFingerLink{
 							{Href: "https://example.com/user"},
 						},
 					},
@@ -225,7 +225,7 @@ func TestConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := webfinger.New(ctx, next, tt.config, "test")
+			_, err := traefik_webfinger.New(ctx, next, tt.config, "test")
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
