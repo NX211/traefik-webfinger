@@ -1,6 +1,6 @@
 # Traefik WebFinger Plugin
 
-![Traefik WebFinger](https://raw.githubusercontent.com/nx211/traefik-webfinger/main/.assets/icon.svg)
+![Traefik WebFinger](https://raw.githubusercontent.com/nx211/traefik-webfinger/main/.assets/icon.png)
 
 A [Traefik](https://traefik.io/) middleware plugin that implements the [WebFinger Protocol (RFC 7033)](https://datatracker.ietf.org/doc/html/rfc7033) for service discovery.
 
