@@ -1,4 +1,4 @@
-module github.com/nx211/traefik-webfinger
+module github.com/NX211/traefik-webfinger
 
 go 1.19
 

@@ -126,7 +126,7 @@ linters-settings:
           - "!$test"
         allow:
           - $gostd
-          - github.com/nx211/traefik-webfinger
+          - github.com/NX211/traefik-webfinger
         deny:
           - pkg: io/ioutil
             desc: "replaced by io and os packages since Go 1.16"
@@ -135,7 +135,7 @@ linters-settings:
           - "$test"
         allow:
           - $gostd
-          - github.com/nx211/traefik-webfinger
+          - github.com/NX211/traefik-webfinger
           - github.com/stretchr/testify
   wsl:
     allow-cuddle-declarations: true

@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	webfinger "github.com/nx211/traefik-webfinger"
+	webfinger "github.com/NX211/traefik-webfinger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

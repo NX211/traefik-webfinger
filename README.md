@@ -25,7 +25,7 @@ To configure the WebFinger plugin in your Traefik instance:
 experimental:
   plugins:
     webfinger:
-      moduleName: github.com/nx211/traefik-webfinger
+      moduleName: github.com/NX211/traefik-webfinger
       version: v0.1.0
 ```
 
@@ -167,7 +167,7 @@ For local development, you can use Traefik's plugin development mode:
 experimental:
   localPlugins:
     webfinger:
-      moduleName: github.com/nx211/traefik-webfinger
+      moduleName: github.com/NX211/traefik-webfinger
 ```
 
 ## License

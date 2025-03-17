@@ -2,7 +2,7 @@ displayName: Webfinger Plugin
 type: middleware
 iconPath: .assets/logo.svg
 
-import: github.com/nx211/traefik-webfinger
+import: github.com/NX211/traefik-webfinger
 
 summary: 'Webfinger - Traefik Webfinger Middleware'
 
