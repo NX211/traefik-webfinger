@@ -28,11 +28,11 @@ type WebFingerLink struct {
 // Config defines the plugin configuration structure.
 type Config struct {
 	// The domain this WebFinger service is responsible for
-	Domain string `json:"domain,omitempty"`
+	Domain string `json:"domain,omitempty" yaml:"domain"`
 	// Default resources and their links
-	Resources map[string]WebFingerResponse `json:"resources,omitempty"`
+	Resources map[string]WebFingerResponse `json:"resources,omitempty" yaml:"resources"`
 	// Whether to pass through to the backend service if resource not found
-	Passthrough bool `json:"passthrough,omitempty"`
+	Passthrough bool `json:"passthrough,omitempty" yaml:"passthrough"`
 }
 
 // CreateConfig creates a new default plugin configuration.
@@ -57,6 +57,21 @@ type WebFinger struct {
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	if config.Domain == "" {
 		return nil, fmt.Errorf("domain must be specified")
+	}
+
+	// Validate resources
+	for resource, response := range config.Resources {
+		if !isResourceForDomain(resource, config.Domain) {
+			return nil, fmt.Errorf("resource %s does not match configured domain %s", resource, config.Domain)
+		}
+		if response.Subject == "" {
+			return nil, fmt.Errorf("subject is required for resource %s", resource)
+		}
+		for _, link := range response.Links {
+			if link.Rel == "" {
+				return nil, fmt.Errorf("rel is required for links in resource %s", resource)
+			}
+		}
 	}
 	
 	return &WebFinger{
@@ -91,18 +106,22 @@ func (w *WebFinger) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// Check if the resource belongs to the configured domain
 	if !isResourceForDomain(resource, w.domain) {
+		if w.passthrough {
+			w.next.ServeHTTP(rw, req)
+			return
+		}
 		http.Error(rw, "Resource not found", http.StatusNotFound)
 		return
 	}
 
 	// If the resource is specified in our configuration, return it
-	normalizedResource := normalizeResource(resource)
-	if response, exists := w.resources[normalizedResource]; exists {
+	if response, exists := w.resources[resource]; exists {
 		rw.Header().Set("Content-Type", "application/jrd+json")
 		rw.WriteHeader(http.StatusOK)
 		
 		if err := json.NewEncoder(rw).Encode(response); err != nil {
 			http.Error(rw, "Error encoding response", http.StatusInternalServerError)
+			return
 		}
 		return
 	}

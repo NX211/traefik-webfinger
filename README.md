@@ -4,46 +4,38 @@
 
 A [Traefik](https://traefik.io/) middleware plugin that implements the [WebFinger Protocol (RFC 7033)](https://datatracker.ietf.org/doc/html/rfc7033) for service discovery.
 
-## What is WebFinger?
-
-WebFinger is a protocol that enables the discovery of information about people or other entities on the Internet that are identified by a URI. WebFinger is used by federated social networks like Mastodon and other systems that need to discover services associated with a domain or email-like identifier.
-
 ## Features
 
-- Simple integration with Traefik
-- Configurable WebFinger resources via static configuration
-- Option to pass through to backend services for dynamic WebFinger resources
-- Follows the WebFinger specification (RFC 7033)
-- Minimal impact on non-WebFinger requests
+- Full WebFinger protocol support according to RFC 7033
+- Static resource configuration
+- Domain-based resource filtering
+- Optional passthrough to backend services
+- Support for multiple resource types (acct:, https://, mailto:)
+- Configurable aliases and links
+- JRD+JSON response format
 
-## Configuration
+## Installation
 
-### Static Configuration
+To configure the WebFinger plugin in your Traefik instance:
 
-To use this plugin, you need to add it to your Traefik static configuration:
+1. Enable the plugin in your static configuration:
 
 ```yaml
 # Static configuration
-pilot:
-  token: "xxxx"
-
 experimental:
   plugins:
     webfinger:
-      moduleName: "github.com/nx211/traefik-webfinger"
-      version: "v0.1.0"
+      moduleName: github.com/nx211/traefik-webfinger
+      version: v0.1.0
 ```
 
-### Middleware Configuration
-
-Then, you can configure the middleware in your dynamic configuration:
+2. Configure the middleware in your dynamic configuration:
 
 ```yaml
 # Dynamic configuration
-
 http:
   middlewares:
-    webfinger-handler:
+    my-webfinger:
       plugin:
         webfinger:
           domain: "example.com"
@@ -62,63 +54,120 @@ http:
           passthrough: false
 ```
 
-### Configuration Options
-
-- **domain**: (Required) The domain name this WebFinger service is responsible for.
-- **resources**: (Optional) Map of WebFinger resources to serve statically.
-  - Each resource is identified by a key (e.g., `acct:user@example.com`)
-  - Each resource can have:
-    - **subject**: (Required) The subject of the resource.
-    - **aliases**: (Optional) List of URI aliases for the resource.
-    - **links**: (Optional) List of links associated with the resource.
-      - **rel**: (Required) The relation type of the link.
-      - **type**: (Optional) The media type of the target resource.
-      - **href**: (Optional) The URI of the target resource.
-      - **titles**: (Optional) Human-readable labels for the link.
-      - **properties**: (Optional) Additional properties of the link.
-- **passthrough**: (Optional, default: false) Whether to pass through WebFinger requests to the backend service when the resource is not found.
-
-## Integration with Traefik
-
-Attach the middleware to a router in your dynamic configuration:
+3. Use the middleware in your router:
 
 ```yaml
 http:
   routers:
-    webfinger-router:
-      rule: "Host(`example.com`) && Path(`/.well-known/webfinger`)"
-      service: "your-backend"
+    my-router:
+      rule: "Host(`example.com`)"
+      service: my-service
       middlewares:
-        - "webfinger-handler"
+        - my-webfinger
 ```
 
-## Use Cases
+## Configuration
 
-### Federated Social Networks (Mastodon, Pleroma, etc.)
+### Plugin Configuration Options
 
-WebFinger is used by ActivityPub-based social networks to discover user accounts:
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| domain | string | Yes | "" | The domain this WebFinger service handles |
+| resources | map | No | {} | Map of WebFinger resources and their responses |
+| passthrough | bool | No | false | Whether to pass through to backend when resource not found |
+
+### Resource Configuration
+
+Each resource in the `resources` map can have the following properties:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| subject | string | Yes | The resource identifier |
+| aliases | []string | No | Alternative identifiers for the resource |
+| links | []Link | No | Related links for the resource |
+
+### Link Configuration
+
+Each link in the `links` array can have:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| rel | string | Yes | The link relation type |
+| type | string | No | The content type of the linked resource |
+| href | string | No | The URL of the linked resource |
+| titles | map[string]string | No | Titles in different languages |
+| properties | map[string]string | No | Additional properties |
+
+## Example Usage
+
+### Basic Configuration
 
 ```yaml
-resources:
-  "acct:user@example.com":
-    subject: "acct:user@example.com"
-    links:
-      - rel: "self"
-        type: "application/activity+json"
-        href: "https://example.com/users/user"
+http:
+  middlewares:
+    webfinger:
+      plugin:
+        webfinger:
+          domain: "example.com"
+          resources:
+            "acct:alice@example.com":
+              subject: "acct:alice@example.com"
+              aliases:
+                - "https://example.com/alice"
+              links:
+                - rel: "http://webfinger.net/rel/profile-page"
+                  type: "text/html"
+                  href: "https://example.com/alice"
 ```
 
-### OpenID Connect Provider Discovery
+### Making Requests
 
-WebFinger can be used to discover OpenID Connect providers:
+To query a WebFinger resource:
+
+```bash
+curl "https://example.com/.well-known/webfinger?resource=acct:alice@example.com"
+```
+
+Example response:
+
+```json
+{
+  "subject": "acct:alice@example.com",
+  "aliases": [
+    "https://example.com/alice"
+  ],
+  "links": [
+    {
+      "rel": "http://webfinger.net/rel/profile-page",
+      "type": "text/html",
+      "href": "https://example.com/alice"
+    }
+  ]
+}
+```
+
+## Development
+
+To build and test the plugin:
+
+```bash
+# Run tests
+go test ./...
+
+# Build the plugin
+go build ./...
+```
+
+### Local Development
+
+For local development, you can use Traefik's plugin development mode:
 
 ```yaml
-resources:
-  "acct:user@example.com":
-    subject: "acct:user@example.com"
-    links:
-      - rel: "http://openid.net/specs/connect/1.0/issuer"
-        href: "https://auth.example.com"
+# Static configuration
+experimental:
+  localPlugins:
+    webfinger:
+      moduleName: github.com/nx211/traefik-webfinger
 ```
 
 ## License

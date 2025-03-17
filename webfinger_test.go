@@ -64,6 +64,8 @@ func TestWebFinger(t *testing.T) {
 	
 	assert.Equal(t, "acct:alice@example.com", response.Subject)
 	assert.Len(t, response.Links, 2)
+	assert.Equal(t, "http://webfinger.net/rel/profile-page", response.Links[0].Rel)
+	assert.Equal(t, "self", response.Links[1].Rel)
 
 	// Test 2: Missing resource parameter
 	recorder = httptest.NewRecorder()
@@ -71,7 +73,6 @@ func TestWebFinger(t *testing.T) {
 	require.NoError(t, err)
 
 	handler.ServeHTTP(recorder, req)
-	
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
 
 	// Test 3: Resource not found
@@ -80,7 +81,6 @@ func TestWebFinger(t *testing.T) {
 	require.NoError(t, err)
 
 	handler.ServeHTTP(recorder, req)
-	
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
 
 	// Test 4: Resource for different domain
@@ -89,7 +89,6 @@ func TestWebFinger(t *testing.T) {
 	require.NoError(t, err)
 
 	handler.ServeHTTP(recorder, req)
-	
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
 
 	// Test 5: Non-WebFinger path should be passed through
@@ -98,8 +97,15 @@ func TestWebFinger(t *testing.T) {
 	require.NoError(t, err)
 
 	handler.ServeHTTP(recorder, req)
-	
 	assert.Equal(t, http.StatusTeapot, recorder.Code)
+
+	// Test 6: Method not allowed
+	recorder = httptest.NewRecorder()
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, "/.well-known/webfinger?resource=acct:alice@example.com", nil)
+	require.NoError(t, err)
+
+	handler.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
 }
 
 func TestPassthrough(t *testing.T) {
@@ -124,9 +130,107 @@ func TestPassthrough(t *testing.T) {
 	require.NoError(t, err)
 
 	handler.ServeHTTP(recorder, req)
-	
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	
-	body, _ := io.ReadAll(recorder.Body)
+	body, err := io.ReadAll(recorder.Body)
+	require.NoError(t, err)
 	assert.Equal(t, `{"message":"backend response"}`, string(body))
+
+	// Test passthrough for different domain
+	recorder = httptest.NewRecorder()
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "/.well-known/webfinger?resource=acct:user@otherdomain.com", nil)
+	require.NoError(t, err)
+
+	handler.ServeHTTP(recorder, req)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+}
+
+func TestConfigValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *webfinger.Config
+		expectError bool
+	}{
+		{
+			name: "Valid config",
+			config: &webfinger.Config{
+				Domain: "example.com",
+				Resources: map[string]webfinger.WebFingerResponse{
+					"acct:user@example.com": {
+						Subject: "acct:user@example.com",
+						Links: []webfinger.WebFingerLink{
+							{Rel: "self", Href: "https://example.com/user"},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		{
+			name: "Missing domain",
+			config: &webfinger.Config{
+				Resources: map[string]webfinger.WebFingerResponse{
+					"acct:user@example.com": {
+						Subject: "acct:user@example.com",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Resource domain mismatch",
+			config: &webfinger.Config{
+				Domain: "example.com",
+				Resources: map[string]webfinger.WebFingerResponse{
+					"acct:user@otherdomain.com": {
+						Subject: "acct:user@otherdomain.com",
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Missing subject",
+			config: &webfinger.Config{
+				Domain: "example.com",
+				Resources: map[string]webfinger.WebFingerResponse{
+					"acct:user@example.com": {
+						Links: []webfinger.WebFingerLink{
+							{Rel: "self", Href: "https://example.com/user"},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			name: "Missing link rel",
+			config: &webfinger.Config{
+				Domain: "example.com",
+				Resources: map[string]webfinger.WebFingerResponse{
+					"acct:user@example.com": {
+						Subject: "acct:user@example.com",
+						Links: []webfinger.WebFingerLink{
+							{Href: "https://example.com/user"},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	ctx := context.Background()
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {})
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := webfinger.New(ctx, next, tt.config, "test")
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }

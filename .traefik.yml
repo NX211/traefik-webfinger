@@ -6,6 +6,21 @@ import: github.com/nx211/traefik-webfinger
 
 summary: 'Webfinger - Traefik Webfinger Middleware'
 
+testData:
+  domain: "example.com"
+  resources:
+    "acct:user@example.com":
+      subject: "acct:user@example.com"
+      aliases:
+        - "https://example.com/user"
+      links:
+        - rel: "http://webfinger.net/rel/profile-page"
+          type: "text/html"
+          href: "https://example.com/user"
+        - rel: "self"
+          type: "application/activity+json"
+          href: "https://example.com/users/user"
+      passthrough: false
 
 webfinger-handler:
   plugin:
